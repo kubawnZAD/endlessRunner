@@ -23,18 +23,15 @@ impl Player {
         }
     }
 
-    // Ta metoda teraz przyjmuje stały krok czasowy, nie zmienny
     fn update(&mut self, dt: f32) {
         self.velocity_y += GRAVITY * dt;
         
-        // Input sprawdzamy tutaj lub w głównej pętli, ale aplikujemy siłę w fizyce
         if is_key_pressed(KeyCode::Space) {
             self.velocity_y = JUMP_FORCE;
         }
 
         self.y += self.velocity_y * dt;
 
-        // Kolizje
         if self.y + PLAYER_SIZE >= screen_height() {
             self.y = screen_height() - PLAYER_SIZE;
             self.velocity_y = 0.0;
@@ -53,24 +50,20 @@ impl Player {
 async fn main() {
     let mut player = Player::new();
     
-    // Akumulator czasu
     let mut accumulator = 0.0;
 
     loop {
-        // Dodajemy czas, który upłynął od ostatniej klatki
         accumulator += get_frame_time();
 
-        // Pętla while: wykonuj aktualizacje fizyki tak długo, 
-        // jak mamy wystarczająco dużo zgromadzonego czasu.
+
         while accumulator >= TIME_STEP {
-            player.update(TIME_STEP); // Zawsze przekazujemy stałą wartość!
+            player.update(TIME_STEP); !
             accumulator -= TIME_STEP;
         }
 
         clear_background(BACKGROUND_COLOR);
         player.draw();
 
-        // Opcjonalnie: Wyświetl FPS, aby monitorować wydajność
         draw_text(&format!("FPS: {}", get_fps()), 10.0, 20.0, 30.0, WHITE);
 
         next_frame().await
