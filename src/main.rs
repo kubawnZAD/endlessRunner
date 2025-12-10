@@ -1,10 +1,12 @@
+use std::fs::{self};
+
 use macroquad::{prelude::*};
 
 const GRAVITY: f32 = 1300.0;
-const JUMP_FORCE: f32 = -480.0;
+const JUMP_FORCE: f32 = -460.0;
 const PLAYER_SIZE: f32 = 25.0;
 const BACKGROUND_COLOR: Color = color_u8!(8, 144, 0, 255);
-
+const BG_SPEED: f32 = 300.0;
 
 fn window_conf() -> Conf {
     Conf {
@@ -61,7 +63,7 @@ impl Player {
             rotation: self.velocity_y * 0.001, 
             ..Default::default()
         };
-        draw_texture_ex(texture, self.x-PLAYER_SIZE, self.y-PLAYER_SIZE, WHITE, params);
+        draw_texture_ex(texture, (self.x-PLAYER_SIZE).round(), (self.y-PLAYER_SIZE).round(), WHITE, params);
     }
     fn get_rect(&self) -> Rect {
         Rect::new(self.x-PLAYER_SIZE, self.y-PLAYER_SIZE, PLAYER_SIZE*1.90, PLAYER_SIZE*1.90)
@@ -88,7 +90,7 @@ impl Obstacle{
             flip_y: flip,
             ..Default::default()
         };
-        draw_texture_ex(texture, self.x, self.y, WHITE, params);
+        draw_texture_ex(texture, self.x.round(), self.y.round(), WHITE, params);
     }
     fn update(&mut self,dt:f32){
         self.x-=300f32*dt;
@@ -100,6 +102,20 @@ impl Obstacle{
 
 }
 
+fn get_highscore() -> u32 {
+    match fs::read_to_string("highscore.txt") {
+        Ok(content) => {
+            content.trim().parse().unwrap_or(0)
+        }
+        Err(_) => 0,
+    }
+}
+fn save_highscore(score: u32) {
+    if let Err(e) = fs::write("highscore.txt", score.to_string()) {
+        println!("Błąd zapisu highscore: {}", e);
+    }
+}
+
 #[macroquad::main(window_conf)]
 async fn main() {
     set_pc_assets_folder("assets");
@@ -107,23 +123,31 @@ async fn main() {
     player_texture.set_filter(FilterMode::Nearest);
     let pipe_texture = load_texture("pipe.png").await.unwrap();
     pipe_texture.set_filter(FilterMode::Nearest);
+    let bg_texture = load_texture("background.png").await.unwrap();
+    bg_texture.set_filter(FilterMode::Nearest);
     let mut player = Player::new();
     let mut obstacles: Vec<(Obstacle,Obstacle)> = Vec::new();
     let mut obs_timer=0.0;
     let mut time=1.5;
     let mut game_state = GameState::Playing;
     let mut score=0;
+    let mut bg_scroll: f32 = 0.0;
+    let mut high_score: u32 = get_highscore();
     loop {
-        let dt = get_frame_time();
+        let dt = get_frame_time().min(0.05);
 
         match game_state{
             GameState::Playing =>{
+                bg_scroll -= BG_SPEED * dt;
+                if bg_scroll <= -screen_width() {
+                    bg_scroll = 0.0;
+                }
                 //Tworzenie przeszkód
                 obs_timer+=dt;
                 if obs_timer>=time{
-                    let height = rand::gen_range(50f32,450f32);
-                    let obs1=Obstacle::new(screen_width(),screen_height()-height,height);
-                    let obs2=Obstacle::new(screen_width(),0.0,screen_height()-height-150.0);
+                    let height = rand::gen_range(70f32,350f32);
+                    let obs1=Obstacle::new(screen_width(),screen_height()-height-120f32,height);
+                    let obs2=Obstacle::new(screen_width(),0.0,screen_height()-height-270.0);
                     obstacles.push((obs1,obs2));
                     obs_timer=0.0;
                     time=rand::gen_range(1.0, 2.0);
@@ -150,7 +174,11 @@ async fn main() {
                     
                    
                 }
-                if player.y > screen_height() || player.y < 0.0 {
+                if player.y+PLAYER_SIZE+120f32 >= screen_height() || player.y < 0.0{
+                    if score > high_score {
+                        high_score = score;
+                        save_highscore(high_score);
+                    }
                      game_state = GameState::GameOver;
                 }
             }
@@ -162,11 +190,32 @@ async fn main() {
                 game_state = GameState::Playing;
                 obs_timer=0.0;
                 score=0;
+                bg_scroll = 0.0;
             }
         }
     }
 
         clear_background(BACKGROUND_COLOR);
+        let bg_params = DrawTextureParams {
+            dest_size: Some(vec2(screen_width(), screen_height())),
+            ..Default::default()
+        };
+
+        draw_texture_ex(
+            &bg_texture,
+            bg_scroll.round(),
+            0.0,
+            WHITE,
+            bg_params.clone(),
+        );
+
+        draw_texture_ex(
+            &bg_texture,
+            (bg_scroll + screen_width()).round(),
+            0.0,
+            WHITE,
+            bg_params,
+        );
         player.draw(&player_texture);
         for (obs1,obs2) in obstacles.iter() {
             obs1.draw(&pipe_texture,false);
@@ -179,6 +228,7 @@ async fn main() {
             draw_text("Press 'R' to restart", screen_width()/2.0 - 120.0, screen_height()/2.0 + 50.0, 30.0, DARKGRAY);
         }
         draw_text(&format!("Score: {}", score), screen_width()-120.0, 20.0, 30.0, WHITE);
+        draw_text(&format!("Best: {}", high_score), screen_width() - 150.0, 60.0, 20.0, GOLD);
         draw_text(&format!("FPS: {}", get_fps()), 10.0, 20.0, 30.0, WHITE);
         next_frame().await
     }
