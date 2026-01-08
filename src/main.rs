@@ -63,7 +63,7 @@ impl Player {
             rotation: self.velocity_y * 0.001, 
             ..Default::default()
         };
-        draw_texture_ex(texture, (self.x-PLAYER_SIZE).round(), (self.y-PLAYER_SIZE).round(), WHITE, params);
+        draw_texture_ex(texture, self.x-PLAYER_SIZE, self.y-PLAYER_SIZE, WHITE, params);
     }
     fn get_rect(&self) -> Rect {
         Rect::new(self.x-PLAYER_SIZE, self.y-PLAYER_SIZE, PLAYER_SIZE*1.90, PLAYER_SIZE*1.90)
@@ -90,7 +90,7 @@ impl Obstacle{
             flip_y: flip,
             ..Default::default()
         };
-        draw_texture_ex(texture, self.x.round(), self.y.round(), WHITE, params);
+        draw_texture_ex(texture, self.x, self.y, WHITE, params);
     }
     fn update(&mut self,dt:f32){
         self.x-=300f32*dt;
@@ -133,9 +133,13 @@ async fn main() {
     let mut score=0;
     let mut bg_scroll: f32 = 0.0;
     let mut high_score: u32 = get_highscore();
-    loop {
-        let dt = get_frame_time().min(0.05);
+    const TIME_STEP: f32 = 1.0 / 75.0;
+    let mut accumulator: f32 = 0.0;
 
+    loop {
+        let dt = get_frame_time(); 
+        accumulator += dt;
+while accumulator >= TIME_STEP {
         match game_state{
             GameState::Playing =>{
                 bg_scroll -= BG_SPEED * dt;
@@ -203,7 +207,7 @@ async fn main() {
 
         draw_texture_ex(
             &bg_texture,
-            bg_scroll.round(),
+            bg_scroll,
             0.0,
             WHITE,
             bg_params.clone(),
@@ -211,17 +215,16 @@ async fn main() {
 
         draw_texture_ex(
             &bg_texture,
-            (bg_scroll + screen_width()).round(),
+            bg_scroll + screen_width(),
             0.0,
             WHITE,
             bg_params,
         );
-        player.draw(&player_texture);
         for (obs1,obs2) in obstacles.iter() {
             obs1.draw(&pipe_texture,false);
             obs2.draw(&pipe_texture,true);
         }
-        
+        player.draw(&player_texture);
 
         if let GameState::GameOver = game_state {
             draw_text("GAME OVER!", screen_width()/2.0 - 100.0, screen_height()/2.0, 60.0, RED);
@@ -232,4 +235,5 @@ async fn main() {
         draw_text(&format!("FPS: {}", get_fps()), 10.0, 20.0, 30.0, WHITE);
         next_frame().await
     }
+}
 }
