@@ -14,6 +14,10 @@ fn window_conf() -> Conf {
         window_height: 600,
         window_resizable: false,
         window_title: String::from("game"),
+        platform:miniquad::conf::Platform{
+            swap_interval: Some(0),
+            ..Default::default()
+        },
         ..Default::default()
     }
 }
@@ -27,6 +31,7 @@ struct Player {
     x: f32,
     y: f32,
     velocity_y: f32,
+    jump: bool,
 }
 
 impl Player {
@@ -35,14 +40,16 @@ impl Player {
             x: 100.0,
             y: 100.0,
             velocity_y: 0.0,
+            jump: false,
         }
     }
 
     fn update(&mut self, dt: f32) {
         self.velocity_y += GRAVITY * dt;
         
-        if is_key_pressed(KeyCode::Space) {
+        if self.jump || is_key_pressed(KeyCode::Space) || is_mouse_button_pressed(MouseButton::Left) {
             self.velocity_y = JUMP_FORCE;
+            self.jump = false;
         }
 
         self.y += self.velocity_y * dt;
@@ -139,64 +146,93 @@ async fn main() {
     loop {
         let dt = get_frame_time(); 
         accumulator += dt;
-while accumulator >= TIME_STEP {
-        match game_state{
-            GameState::Playing =>{
-                bg_scroll -= BG_SPEED * dt;
-                if bg_scroll <= -screen_width() {
-                    bg_scroll = 0.0;
+
+        if accumulator > 0.1 {
+            accumulator = 0.1;
+        }
+        if is_key_pressed(KeyCode::Space){
+            match game_state {
+                GameState::Playing =>{
+                    player.jump=true;
                 }
-                //Tworzenie przeszkód
-                obs_timer+=dt;
-                if obs_timer>=time{
-                    let height = rand::gen_range(70f32,350f32);
-                    let obs1=Obstacle::new(screen_width(),screen_height()-height-120f32,height);
-                    let obs2=Obstacle::new(screen_width(),0.0,screen_height()-height-270.0);
-                    obstacles.push((obs1,obs2));
-                    obs_timer=0.0;
-                    time=rand::gen_range(1.0, 2.0);
-                }
-                //Usuwanie przeszkód poza ekranem
-                obstacles.retain(|x| x.0.x>-100f32);
-                player.update(dt);
-                for (obs1, obs2) in obstacles.iter_mut(){
-                    obs1.update(dt);
-                    obs2.update(dt);
-                }
-                //Wykrywanie kolizji
-                for (obs1,obs2) in obstacles.iter_mut(){
-                    if player.get_rect().overlaps(&obs1.get_rect()){
-                        game_state=GameState::GameOver;
+                GameState::GameOver =>{
+                    if is_key_pressed(KeyCode::R){
+                        player=Player::new();
+                        obstacles.clear();
+                        game_state = GameState::Playing;
+                        obs_timer=0.0;
+                        score=0;
+                        bg_scroll = 0.0;
                     }
-                    if player.get_rect().overlaps(&obs2.get_rect()){
-                        game_state=GameState::GameOver;
-                    }
-                    if player.x-30f32>obs1.x+obs1.size_x&&!obs1.passed{
-                        score+=1;
-                        obs1.passed=true;
-                    }
-                    
-                   
                 }
-                if player.y+PLAYER_SIZE+120f32 >= screen_height() || player.y < 0.0{
-                    if score > high_score {
-                        high_score = score;
-                        save_highscore(high_score);
-                    }
-                     game_state = GameState::GameOver;
-                }
-            }
-        
-        GameState::GameOver => {
-            if is_key_pressed(KeyCode::R){
-                player=Player::new();
-                obstacles.clear();
-                game_state = GameState::Playing;
-                obs_timer=0.0;
-                score=0;
-                bg_scroll = 0.0;
+                
             }
         }
+        if let GameState::GameOver = game_state {
+             if is_key_pressed(KeyCode::R) {
+                player = Player::new();
+                obstacles.clear();
+                game_state = GameState::Playing;
+                obs_timer = 0.0;
+                score = 0;
+                bg_scroll = 0.0;
+                accumulator = 0.0;
+            }
+        }
+
+        while accumulator >= TIME_STEP {
+            match game_state{
+                GameState::Playing =>{
+                    bg_scroll -= BG_SPEED * TIME_STEP;
+                    if bg_scroll <= -screen_width() {
+                        bg_scroll = 0.0;
+                    }
+                    //Tworzenie przeszkód
+                    obs_timer+=TIME_STEP;
+                    if obs_timer>=time{
+                        let height = rand::gen_range(70f32,350f32);
+                        let obs1=Obstacle::new(screen_width(),screen_height()-height-120f32,height);
+                        let obs2=Obstacle::new(screen_width(),0.0,screen_height()-height-270.0);
+                        obstacles.push((obs1,obs2));
+                        obs_timer=0.0;
+                        time=rand::gen_range(1.0, 2.0);
+                    }
+                    //Usuwanie przeszkód poza ekranem
+                    obstacles.retain(|x| x.0.x>-100f32);
+                    player.update(TIME_STEP);
+                    for (obs1, obs2) in obstacles.iter_mut(){
+                        obs1.update(TIME_STEP);
+                        obs2.update(TIME_STEP);
+                    }
+                    //Wykrywanie kolizji
+                    for (obs1,obs2) in obstacles.iter_mut(){
+                        if player.get_rect().overlaps(&obs1.get_rect()){
+                            game_state=GameState::GameOver;
+                        }
+                        if player.get_rect().overlaps(&obs2.get_rect()){
+                            game_state=GameState::GameOver;
+                        }
+                        if player.x-30f32>obs1.x+obs1.size_x&&!obs1.passed{
+                            score+=1;
+                            obs1.passed=true;
+                        }
+                        
+                    
+                    }
+                    if player.y+PLAYER_SIZE+120f32 >= screen_height() || player.y < 0.0{
+                        if score > high_score {
+                            high_score = score;
+                            save_highscore(high_score);
+                        }
+                        game_state = GameState::GameOver;
+                    }
+                }
+            
+            GameState::GameOver => {
+                // Nic nie rób, czekaj na restart
+            }
+        }
+            accumulator-=TIME_STEP;
     }
 
         clear_background(BACKGROUND_COLOR);
@@ -234,6 +270,6 @@ while accumulator >= TIME_STEP {
         draw_text(&format!("Best: {}", high_score), screen_width() - 150.0, 60.0, 20.0, GOLD);
         draw_text(&format!("FPS: {}", get_fps()), 10.0, 20.0, 30.0, WHITE);
         next_frame().await
+    
     }
-}
 }
