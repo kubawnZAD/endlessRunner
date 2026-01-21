@@ -121,6 +121,9 @@ fn save_highscore(score: u32) {
     if let Err(e) = fs::write("highscore.txt", score.to_string()) {
         println!("Błąd zapisu highscore: {}", e);
     }
+    else{
+        println!("Zapisano highscore: {}", score);
+    }
 }
 
 #[macroquad::main(window_conf)]
@@ -150,10 +153,12 @@ async fn main() {
         if accumulator > 0.1 {
             accumulator = 0.1;
         }
-        if is_key_pressed(KeyCode::Space){
+        
             match game_state {
                 GameState::Playing =>{
-                    player.jump=true;
+                    if is_key_pressed(KeyCode::Space) || is_mouse_button_pressed(MouseButton::Left){
+                        player.jump=true;
+                    }
                 }
                 GameState::GameOver =>{
                     if is_key_pressed(KeyCode::R){
@@ -163,22 +168,11 @@ async fn main() {
                         obs_timer=0.0;
                         score=0;
                         bg_scroll = 0.0;
+                        accumulator = 0.0;
                     }
                 }
                 
             }
-        }
-        if let GameState::GameOver = game_state {
-             if is_key_pressed(KeyCode::R) {
-                player = Player::new();
-                obstacles.clear();
-                game_state = GameState::Playing;
-                obs_timer = 0.0;
-                score = 0;
-                bg_scroll = 0.0;
-                accumulator = 0.0;
-            }
-        }
 
         while accumulator >= TIME_STEP {
             match game_state{
@@ -220,16 +214,16 @@ async fn main() {
                     
                     }
                     if player.y+PLAYER_SIZE+120f32 >= screen_height() || player.y < 0.0{
-                        if score > high_score {
-                            high_score = score;
-                            save_highscore(high_score);
-                        }
+                        
                         game_state = GameState::GameOver;
                     }
                 }
             
             GameState::GameOver => {
-                // Nic nie rób, czekaj na restart
+                if score > high_score {
+                    high_score = score;
+                    save_highscore(high_score);
+                }
             }
         }
             accumulator-=TIME_STEP;
@@ -267,8 +261,7 @@ async fn main() {
             draw_text("Press 'R' to restart", screen_width()/2.0 - 120.0, screen_height()/2.0 + 50.0, 30.0, DARKGRAY);
         }
         draw_text(&format!("Score: {}", score), screen_width()-120.0, 20.0, 30.0, WHITE);
-        draw_text(&format!("Best: {}", high_score), screen_width() - 150.0, 60.0, 20.0, GOLD);
-        draw_text(&format!("FPS: {}", get_fps()), 10.0, 20.0, 30.0, WHITE);
+        draw_text(&format!("Best: {}", high_score), screen_width() - 120.0, 50.0, 30.0, GOLD);
         next_frame().await
     
     }
